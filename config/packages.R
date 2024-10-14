@@ -1,2 +1,9 @@
 library(dplyr)
 library(ggplot2)
+library(readxl)
+library(xts)
+library(formatR)
+library(plotly)
+
+
+
