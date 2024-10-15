@@ -4,6 +4,8 @@ library(readxl)
 library(xts)
 library(formatR)
 library(plotly)
+library(RColorBrewer)
+library(writexl)
 
 
 
