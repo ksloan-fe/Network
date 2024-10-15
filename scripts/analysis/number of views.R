@@ -214,7 +214,7 @@ dev.off()
 
 # Summarise total views per month and feature
 df_figure8 <- df_unique %>%
-  group_by(month, is_friend) %>%
+  group_by(month, is_friend, post_origin) %>%
   summarise(Totalviews = sum(no_of_vpvs, na.rm = TRUE)) %>%
   ungroup()
 
@@ -228,22 +228,24 @@ df_figure8 <- df_figure8 %>%
   left_join(df_totalviews_month, by = "month") %>%
   mutate(share_of_views = Totalviews / monthly_total) %>%
   ungroup()
-
+df_figure8 <- df_figure8 %>% filter(is_friend == 1)
+df_figure8 <- df_figure8 %>% filter(post_origin == c("original", "reshare"))
+df_figure8$month <- as.Date(paste0(df_figure8$month, "-01"), format = "%Y-%m-%d")
 
 png(filename = file.path(dir_output, "Figure 8.png"), width = 800, height = 600)
 
-ggplot(df_figure8, aes(x= month, y=share_of_views, color=factor(is_friend), group=is_friend)) +
+ggplot(df_figure8, aes(x= month, y=share_of_views, color=factor(post_origin), group=post_origin)) +
   geom_line() +
   geom_point() +
-  labs(title=" Share of content views from friends",
+  labs(title="Content views of content produced by Facebook “friends” as a proportion of total content views ",
        x= "Date",
        y="proportion of views",
-       color="From Friends:") +
+       color="Origin:") +
   scale_x_date( date_breaks = "3 month",           # Show dates with a 1-month gap
                 date_labels = "%b %Y") +
-  scale_color_manual(values= c("1"= "darkred", "0"="red"), labels= c("Other Source", "Friends")) +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(plot.title = element_text(size = 10))  
 
 
 dev.off()
