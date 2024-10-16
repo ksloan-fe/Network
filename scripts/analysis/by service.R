@@ -17,6 +17,10 @@ print(aggregated_data)
 aggregated_data <- aggregated_data %>%
   mutate(date = as.Date(paste(year, month, "01", sep = "-")))
 
+aggregated_data <- aggregated_data %>% filter(date > as.Date("2022-12-01"))
+aggregated_data <- aggregated_data %>% filter(service != "86")
+
+
 aggregated_data <- aggregated_data %>%
   mutate(ratio = video_hours / total_hours)
 

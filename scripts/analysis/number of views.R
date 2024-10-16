@@ -14,6 +14,9 @@ df <- rbind(df_2018, df_2024)
 
 df_unique <- distinct(df)
 
+df_unique$month <- as.Date(paste0(df_unique$month, "-01"), format = "%Y-%m-%d")
+df_unique <- df_unique %>% filter(month > as.Date("2022-04-01"))
+
 df_unique$is_friend[is.na(df_unique$is_friend)] <- 0
 
 
