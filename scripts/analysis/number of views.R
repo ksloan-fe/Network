@@ -1,3 +1,4 @@
+options(scipen = 999)
 # Construct the full file path using file.path()
 file_path_2024 <- file.path(dir_raw, "daiquery-vpv breakdown in UK-2024-10-08 12_05am.csv")
 
@@ -41,6 +42,10 @@ ggplot(df_figure1, aes(x= month, y=Totalviews, color=factor(is_friend), group=is
 
 
 dev.off()
+
+reshaped_fig1= df_figure1 %>% pivot_wider(names_from=is_friend, values_from=Totalviews, names_prefix= "friend_") %>% rename(`Not Friend Views` = friend_0, `Friend Views` = friend_1)
+
+write_xlsx(reshaped_fig1, file.path(dir_output, "Figure 1.xlsx"))
 
 
 df_feature <- df_unique %>% 
@@ -129,6 +134,10 @@ df_figure2 <- df_figure2 %>%
 
 # Ensure 'month' is converted to a Date format
 df_figure2$month <- as.Date(paste0(df_figure2$month, "-01"), format = "%Y-%m-%d")
+df_figure2 <- df_figure2 %>% select(-Totalviews, -monthly_total)
+
+reshaped_fig2= df_figure2 %>% pivot_wider(names_from=month, values_from=share_of_views, names_prefix= "share_of_views_") 
+write_xlsx(reshaped_fig2, file.path(dir_output, "Figure2.xlsx"))
 
 
 
@@ -154,8 +163,54 @@ dev.off()
 df_feature$month <- as.Date(paste0(df_feature$month, "-01"), format = "%Y-%m-%d")
 df_feature$year <- format(df_feature$month, "%Y")
 
+#making content source variable 
+df_content <- df_feature
 
-df_figure6 <- df_feature %>%
+df_content <- df_content %>%
+  mutate(content_source = ifelse(is_friend == 1, 
+                                 "Friends", 
+                                 ifelse(is_friend == 0 & post_author_profile_type %in% c("PAGE", "ADDITIONAL_PROFILE_PLUS", "PRIMARY_PROFILE_PLUS"),
+                                        "Page", 
+                                        ifelse(post_author_profile_type %in% c("INSTAGRAM_USER_V2", "INSTAGRAM_USER"), 
+                                               "Instagram users", 
+                                               ifelse(is_friend == 0 & post_author_profile_type == "MAIN_PROFILE", 
+                                                      "Unconnected users",
+                                                      "Other")))))
+
+
+df_figure5 <- df_content %>%
+  group_by(year, content_source, feature) %>%
+  summarise(Totalviews = sum(no_of_vpvs, na.rm = TRUE)) %>%
+  ungroup()
+
+# Calculate total views for each month
+df_totalviews_year_feature <- df_figure5 %>%
+  group_by(year, feature) %>%
+  summarise(year_total = sum(Totalviews))
+
+# Merge total views back to the original data and calculate share
+df_figure5 <- df_figure5 %>%
+  left_join(df_totalviews_year_feature, by = c("year", "feature")) %>%
+  mutate(share_of_views = Totalviews / year_total) %>%
+  ungroup()
+
+
+df_figure5 <- df_figure5 %>% select(-Totalviews, -year_total)
+# Step 1: Pivot the data
+reshaped_fig5 <- df_figure5 %>%
+  pivot_wider(
+    names_from = c(year, content_source),  # Columns from year and post_origin combinations
+    values_from = share_of_views,       # Values to fill (share_of_views)
+    names_sep = "_"                     # Add separator for clearer column names
+  )
+
+
+write_xlsx(reshaped_fig5, file.path(dir_output, "Figure 5.xlsx"))
+
+
+
+
+df_figure6 <- df_feature %>% filter(is_friend == 1) %>%
   group_by(year, feature, post_origin) %>%
   summarise(Totalviews = sum(no_of_vpvs, na.rm = TRUE)) %>%
   ungroup()
@@ -172,8 +227,17 @@ df_figure6 <- df_figure6 %>%
   ungroup()
 
 df_figure6 <- df_figure6 %>% filter(post_origin != "not logged" & post_origin != "Not Logged" & post_origin != "" & !is.na(post_origin))
+df_figure6 <- df_figure6 %>% select(-Totalviews, -year_total)
+# Step 1: Pivot the data
+reshaped_fig6 <- df_figure6 %>%
+  pivot_wider(
+    names_from = c(year, post_origin),  # Columns from year and post_origin combinations
+    values_from = share_of_views,       # Values to fill (share_of_views)
+    names_sep = "_"                     # Add separator for clearer column names
+  )
 
-write_xlsx(df_figure6, file.path(dir_output, "cleaned_data.xlsx"))
+
+write_xlsx(reshaped_fig6, file.path(dir_output, "Figure 6.xlsx"))
 
 
 # Summarise total views per month and feature
@@ -187,7 +251,7 @@ df_totalviews_month <- df_figure7 %>%
   group_by(month, post_type_content_type) %>%
   summarise(monthly_total = sum(Totalviews))
 
-# Merge total views back to the original data and calculate share
+#Merge total views back to the original data and calculate share
 df_figure7 <- df_figure7 %>%
   left_join(df_totalviews_month, by = c("month", "post_type_content_type")) %>%
   mutate(share_of_views = Totalviews / monthly_total) %>%
@@ -196,6 +260,19 @@ df_figure7 <- df_figure7 %>%
 # Ensure 'month' is converted to a Date format
 
 df_figure7 <- df_figure7 %>% filter(is_friend == 1)
+
+df_figure7 <- df_figure7 %>% select(-Totalviews, -monthly_total, -is_friend)
+
+
+reshaped_fig7 <- df_figure7 %>%
+  pivot_wider(
+    names_from = c(month),  # Columns from year and post_origin combinations
+    values_from = share_of_views,       # Values to fill (share_of_views)
+    names_prefix= "share_of_views_"                    # Add separator for clearer column names
+  )
+
+write_xlsx(reshaped_fig7, file.path(dir_output, "Figure 7.xlsx"))
+
 
 png(filename = file.path(dir_output, "Figure 7.png"), width = 800, height = 600)
 
@@ -212,8 +289,8 @@ ggplot(df_figure7, aes(x= month, y=share_of_views, color=factor(post_type_conten
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-
 dev.off()
+
 
 # Summarise total views per month and feature
 df_figure8 <- df_unique %>%
@@ -235,6 +312,20 @@ df_figure8 <- df_figure8 %>% filter(is_friend == 1)
 df_figure8 <- df_figure8 %>% filter(post_origin == c("original", "reshare"))
 df_figure8$month <- as.Date(paste0(df_figure8$month, "-01"), format = "%Y-%m-%d")
 
+df_figure8 <- df_figure8 %>% select(-Totalviews, -monthly_total, -is_friend)
+
+
+reshaped_fig8 <- df_figure8 %>%
+  pivot_wider(
+    names_from = c(month),  # Columns from year and post_origin combinations
+    values_from = share_of_views,       # Values to fill (share_of_views)
+    names_prefix= "share_of_views_"                    # Add separator for clearer column names
+  )
+
+
+write_xlsx(reshaped_fig8, file.path(dir_output, "Figure 8.xlsx"))
+
+
 png(filename = file.path(dir_output, "Figure 8.png"), width = 800, height = 600)
 
 ggplot(df_figure8, aes(x= month, y=share_of_views, color=factor(post_origin), group=post_origin)) +
@@ -249,7 +340,6 @@ ggplot(df_figure8, aes(x= month, y=share_of_views, color=factor(post_origin), gr
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   theme(plot.title = element_text(size = 10))  
-
 
 dev.off()
 
