@@ -34,75 +34,59 @@ service_data <- service_data %>%
 
 
 
-service_em <- service_data %>% filter(service != 'Messenger')
+share_by_feature_tbl <- service_data |>
+  as_tibble() |>
+  mutate(
+    date = ymd(paste(year, month, "1", sep="-")),
+    is_not_msgr = service != "Messenger"
+  ) |>
+  group_by(month, year, date, service, is_not_msgr) |>
+  summarise(
+    views = sum(ts_total, na.rm = TRUE),
+    views_ex_msgr = sum(ts_total*is_not_msgr, na.rm=TRUE),
+    .groups = "drop"
+  ) |>
+  group_by(date, month, year) |>
+  mutate(
+    share = 100 * views / sum(views),
+    share_ex_msgr = 100 * views*is_not_msgr / sum(views*is_not_msgr)
+  ) |>
+  ungroup()|>
+  filter(date %in% c(ymd("2021-11-01", "2024-09-01"))) |>
+  select(service, date, share, share_ex_msgr) |>
+  gather(key=share_type, value=share, -service, -date) |>
+  mutate(date_measure = paste(date, share_type)) |>
+  select(service, date_measure, share) |>
+  spread(key=date_measure, value=share) |>
+  arrange(desc(`2021-11-01 share`))
 
-table_1 <- service_data %>%
-  group_by(month, year, service) %>%
-  summarise(Totalviews = sum(ts_total, na.rm = TRUE)) %>%
-  ungroup()
 
-df_totalviews_month <- table_1 %>%
-  group_by(month, year) %>%
-  summarise(monthly_total = sum(Totalviews))
-
-table_1 <- table_1 %>%
-  left_join(df_totalviews_month, by = c("month", "year")) %>%
-  mutate(share_of_views = Totalviews / monthly_total) %>%
-  ungroup()
-
-write_xlsx(table_1, file.path(dir_output, "Table 1.xlsx"))
+# FIXME Table 1 - write me out?
+share_by_feature_tbl
 
 
-table_1 <- service_em %>%
-  group_by(month, year, service) %>%
-  summarise(Totalviews = sum(ts_total, na.rm = TRUE)) %>%
-  ungroup()
-
-df_totalviews_month <- table_1 %>%
-  group_by(month, year) %>%
-  summarise(monthly_total = sum(Totalviews))
-
-table_1 <- table_1 %>%
-  left_join(df_totalviews_month, by = c("month", "year")) %>%
-  mutate(share_of_views = Totalviews / monthly_total) %>%
-  ungroup()
-
-write_xlsx(table_1, file.path(dir_output, "Table 2.xlsx"))
-
-#Video share
-table_1 <- service_data %>%
-  group_by(month, year, service) %>%
-  summarise(Totalviews = sum(video_ts_total, na.rm = TRUE)) %>%
-  ungroup()
-
-df_totalviews_month <- service_data %>%
-  group_by(month, year, service) %>%
-  summarise(monthly_total = sum(ts_total, na.rm = TRUE))
-
-table_1 <- table_1 %>%
-  left_join(df_totalviews_month, by = c("month", "year", "service")) %>%
-  mutate(share_of_views = Totalviews / monthly_total) %>%
-  ungroup()
-
-write_xlsx(table_1, file.path(dir_output, "Table 3.xlsx"))
 
 #Video share total line at bottom 
 
-table_1 <- service_data %>%
-  group_by(month, year) %>%
-  summarise(Totalviews = sum(video_ts_total, na.rm = TRUE)) %>%
-  ungroup()
+video_shares_by_service <- service_data |>
+  as_tibble() |>
+  group_by(month, year, service) |>
+  summarise(
+    video_ts = sum(video_ts_total, na.rm=TRUE),
+    ts_total = sum(ts_total, na.rm=TRUE),
+    .groups = "drop"
+  ) |>
+  group_by(month, year) |>
+  mutate(share_of_video = 100 * (video_ts / ts_total)) |>
+  ungroup()|>
+  filter(year==2024 & month ==9) |>
+  arrange(desc(share_of_video)) |>
+  mutate(share_of_video = round(share_of_video,1))
 
-df_totalviews_month <- service_data %>%
-  group_by(month, year) %>%
-  summarise(monthly_total = sum(ts_total, na.rm = TRUE))
+# FIXME table 3: write me out?
+video_share_total <- video_shares_by_service |>
+  summarise(video_as_shr_total = 100*sum(video_ts) / sum(ts_total))
 
-table_1 <- table_1 %>%
-  left_join(df_totalviews_month, by = c("month", "year")) %>%
-  mutate(share_of_views = Totalviews / monthly_total) %>%
-  ungroup()
-
-write_xlsx(table_1, file.path(dir_output, "Table 4.xlsx"))
 
 # Initial interactive graph- not used in slides 
 
