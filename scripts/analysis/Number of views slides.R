@@ -4,8 +4,6 @@ options(scipen = 999)
 file_path_2024 <- file.path(dir_raw, "daiquery-vpv breakdown in UK (anon)-2024-11-02 3_50pm.csv")
 
 df_2024 <- read.csv(file_path_2024)
-df_2024 <- `daiquery.vpv.breakdown.in.UK.(anon).2024.11.02.3_50pm`
-
 df_unique <- distinct(df_2024)
 df_unique <- df_unique %>% filter(is.na(is_ad))
 df_unique <- df_unique %>% filter(is.na(is_eqp))

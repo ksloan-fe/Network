@@ -26,17 +26,16 @@ df_all <- df_all %>% filter(month <= as.Date("2024-06-01"))
 
 df_all$is_friend[is.na(df_all$is_friend)] <- 0
 
-#Slide 10
+#Slide 11
+
 df_friends_views <- df_all %>%
   group_by(month, is_friend) %>%
   summarise(Totalviews = sum(cululative_vpv_duration, na.rm = TRUE), .groups = 'drop')
 
-# Step 2: Group by month to get total views for each month
 df_total_views <- df_all %>%
   group_by(month) %>%
   summarise(Totalviews_month = sum(cululative_vpv_duration, na.rm = TRUE), .groups = 'drop')
 
-# Step 3: Join the two summaries to calculate the share of friends' views
 df_figure1_all <- df_friends_views %>%
   left_join(df_total_views, by = "month") %>%
   mutate(Share_friends = ifelse(is_friend == TRUE, Totalviews / Totalviews_month * 100, NA)) %>%
@@ -47,12 +46,10 @@ df_friends_views_unique <- df_unique  %>%
   group_by(month, is_friend) %>%
   summarise(Totalviews = sum(cululative_vpv_duration, na.rm = TRUE), .groups = 'drop')
 
-# Step 2: Group by month to get total views for each month
 df_total_views_unique <- df_unique %>%
   group_by(month) %>%
   summarise(Totalviews_month = sum(cululative_vpv_duration, na.rm = TRUE), .groups = 'drop')
 
-# Step 3: Join the two summaries to calculate the share of friends' views
 df_figure1_unique <- df_friends_views_unique %>%
   left_join(df_total_views_unique, by = "month") %>%
   mutate(Share_friends = ifelse(is_friend == TRUE, Totalviews / Totalviews_month * 100, NA)) %>%
@@ -94,17 +91,492 @@ df_all$year <- format(df_all$month, "%Y")
 
 df_friends_views_unique <- df_unique  %>%
   group_by(year, is_friend) %>%
-  summarise(Totalviews = sum(no_of_vpvs, na.rm = TRUE), .groups = 'drop')
+  summarise(Totalviews = sum(cululative_vpv_duration, na.rm = TRUE), .groups = 'drop')
 
-# Step 2: Group by month to get total views for each month
 df_total_views_unique <- df_unique %>%
   group_by(year) %>%
-  summarise(Totalviews_month = sum(no_of_vpvs, na.rm = TRUE), .groups = 'drop')
+  summarise(Totalviews_month = sum(cululative_vpv_duration, na.rm = TRUE), .groups = 'drop')
 
-# Step 3: Join the two summaries to calculate the share of friends' views
 df_figure1_unique <- df_friends_views_unique %>%
   left_join(df_total_views_unique, by = "year") %>%
   mutate(Share_friends = ifelse(is_friend == TRUE, Totalviews / Totalviews_month * 100, NA)) %>%
   filter(!is.na(Share_friends)) 
 
-write_xlsx(df_figure1_unique, file.path(dir_output, "Figure 1.1.xlsx"))
+write_xlsx(df_figure1_unique, file.path(dir_output, "Table one dwell time.xlsx"))
+
+
+df_friends_views <- df_all %>%
+  group_by(year, is_friend) %>%
+  summarise(Totalviews = sum(cululative_vpv_duration, na.rm = TRUE), .groups = 'drop')
+
+df_total_views <- df_all %>%
+  group_by(year) %>%
+  summarise(Totalviews_month = sum(cululative_vpv_duration, na.rm = TRUE), .groups = 'drop')
+
+df_figure1_all <- df_friends_views %>%
+  left_join(df_total_views, by = "year") %>%
+  mutate(Share_friends = ifelse(is_friend == TRUE, Totalviews / Totalviews_month * 100, NA)) %>%
+  filter(!is.na(Share_friends)) 
+
+write_xlsx(df_figure1_all, file.path(dir_output, "Table two dwell time.xlsx"))
+
+
+#Slide 12
+#Graph
+
+df_figure8 <- df_unique %>%
+  group_by(month, is_friend, post_origin) %>%
+  summarise(Totalviews = sum(cululative_vpv_duration, na.rm = TRUE)) %>%
+  ungroup()
+
+df_totalviews_month <- df_figure8 %>%
+  group_by(month) %>%
+  summarise(monthly_total = sum(Totalviews))
+
+df_figure8 <- df_figure8 %>%
+  left_join(df_totalviews_month, by = "month") %>%
+  mutate(share_of_views = Totalviews / monthly_total) %>%
+  ungroup()
+df_figure8 <- df_figure8 %>% filter(is_friend == 1)
+df_figure8 <- df_figure8 %>% filter(post_origin != "")
+df_figure8$month <- as.Date(paste0(df_figure8$month, "-01"), format = "%Y-%m-%d")
+
+df_figure8 <- df_figure8 %>% select(-Totalviews, -monthly_total, -is_friend)
+
+
+reshaped_fig8 <- df_figure8 %>%
+  pivot_wider(
+    names_from = c(month),  
+    values_from = share_of_views,      
+    names_prefix= "share_of_views_"                    
+  )
+
+totals <- df_figure8 %>%
+  group_by(month) %>%
+  summarise(post_origin = "total", count = sum(share_of_views))
+
+df_figure8 <- bind_rows(df_figure8, totals) %>%
+  arrange(month, desc(post_origin)) 
+
+df_figure8 <- df_figure8 %>%
+  mutate(share_of_views = ifelse(is.na(share_of_views), count, share_of_views))
+
+
+png(filename = file.path(dir_output, "Figure 8 Dwell time.png"), width = 800, height = 600)
+
+ggplot(df_figure8, aes(x= month, y=share_of_views, color=factor(post_origin), group=post_origin)) +
+  geom_line() +
+  geom_point() +
+  labs(title="Dwell time of content produced by Facebook “friends” as a proportion of total dwell time",
+       y="proportion of dwell time",
+       x= " ",
+       color=" ") +
+  scale_x_date( date_breaks = "1 month",           
+                date_labels = "%b %Y") +
+  scale_y_continuous(limits = c(0, 0.2),   breaks = seq(0, 0.2, by = 0.02)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(plot.title = element_text(size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+        axis.text.y = element_text(size = 14),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16),
+        panel.grid.major.y = element_line(color = "lightgray"),  
+        panel.grid.major.x = element_blank(),                                         
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(color = "black", size = 0.5),
+        legend.title = element_text(size = 14),    
+        legend.text = element_text(size = 15),     
+        legend.key.size = unit(1.5, "lines"))  +
+  expand_limits(y = 0)
+
+dev.off()
+
+#Table 
+
+df_figure8 <- df_unique %>%
+  group_by(year, is_friend, post_origin) %>%
+  summarise(Totalviews = sum(cululative_vpv_duration, na.rm = TRUE)) %>%
+  ungroup()
+
+df_totalviews_month <- df_figure8 %>%
+  group_by(year) %>%
+  summarise(monthly_total = sum(Totalviews))
+
+df_figure8 <- df_figure8 %>%
+  left_join(df_totalviews_month, by = "year") %>%
+  mutate(share_of_views = Totalviews / monthly_total) %>%
+  ungroup()
+df_figure8 <- df_figure8 %>% filter(is_friend == 1)
+
+df_figure8 <- df_figure8 %>% select(-Totalviews, -monthly_total, -is_friend)
+
+write_xlsx(df_figure8, file.path(dir_output, "Figure 8.1 dwell time.xlsx"))
+
+df_figure8 <- df_unique %>%
+  group_by(year, is_friend) %>%
+  summarise(Totalviews = sum(cululative_vpv_duration, na.rm = TRUE)) %>%
+  ungroup()
+
+df_totalviews_month <- df_figure8 %>%
+  group_by(year) %>%
+  summarise(monthly_total = sum(Totalviews))
+
+df_figure8 <- df_figure8 %>%
+  left_join(df_totalviews_month, by = "year") %>%
+  mutate(share_of_views = Totalviews / monthly_total) %>%
+  ungroup()
+df_figure8 <- df_figure8 %>% filter(is_friend == 1)
+
+df_figure8 <- df_figure8 %>% select(-Totalviews, -monthly_total, -is_friend)
+
+write_xlsx(df_figure8, file.path(dir_output, "Figure 8.2 total dwell time.xlsx"))
+
+
+#Slide 13
+#Table
+
+df_feature <- df_unique %>% 
+  mutate(feature = case_when(
+    surface == "top_news" ~ "Feed",
+    surface == "video_chaining" ~ "Watch",
+    surface == "vh_live" ~ "Watch",
+    surface == "photos" ~ "Full-screen photo view",
+    surface == "campus_feed" ~ "Feed",
+    surface == "marketplace" ~ "Marketplace",
+    surface == "notifications_public_figure_minifeed" ~ "Other",
+    surface == "top_of_feed_unit" ~ "Feed",
+    surface == "showcase_unit" ~ "Reels",
+    surface == "groups" ~ "Groups",
+    surface == "pages" ~ "Pages",
+    surface == "timeline" ~ "Profile",
+    surface == "sfv_shorts" ~ "Reels",
+    surface == "fb_stories" ~ "Stories",
+    surface == "permalink" ~ "Full-screen post view",
+    surface == "groups_tab" ~ "Groups",
+    surface == "unknown_interaction_source" ~ "Other",
+    surface == "search_results" ~ "Search",
+    surface == "page_video_thumbnail" ~ "Pages",
+    surface == "fb_stories_chaining" ~ "Stories",
+    surface == "video_fullscreen_player" ~ "Other",
+    surface == "fb_shorts_tofu" ~ "Reels",
+    surface == "most_recent_feed" ~ "Other",
+    surface == "news_tab" ~ "Other",
+    surface == "seen_feed" ~ "Feed",
+    surface == "biz_disco_feed" ~ "Other",
+    surface == "snowflake_medias" ~ "Other",
+    surface == "notifications_close_friend_minifeed" ~ "Other",
+    surface == "notifications_public_figure_highlights_minifeed" ~ "Other",
+    surface == "groups_social_learning_tab" ~ "Groups",
+    surface == "video_catalog_thumbnail" ~ "Other",
+    surface == "fan_subscriptions_exclusive_content_feed" ~ "Other",
+    surface == "pages_social_learning_tab" ~ "Other",
+    surface == "local_community_feed" ~ "Other",
+    surface == "notifications_minifeed" ~ "Other",
+    surface == "custom_feed" ~ "Other",
+    surface == "favorites_feed" ~ "Feed",
+    surface == "jewel_tray_minifeed" ~ "Other",
+    surface == "shops_ratings_and_reviews" ~ "Other",
+    surface == "feeds_tab" ~ "Feed",
+    surface == "dessert_feed" ~ "Feed",
+    surface == "media_playlist" ~ "Other",
+    surface == "top_of_home_stories" ~ "Stories",
+    surface == "group_admin_recommendation_feed" ~ "Other",
+    surface == "profile_plus_social_learning_tab" ~ "Profile",
+    surface == "fb_shorts_towu" ~ "Reels",
+    surface == "creator_digest" ~ "Other",
+    surface == "marketplace_pdp_recommended" ~ "Marketplace",
+    surface == "notifications_close_friend_activity_minifeed" ~ "Other",
+    surface == "notifications_nf_photo_story_minifeed" ~ "Other",
+    surface == "notifications_nf_share_story_minifeed" ~ "Other",
+    surface == "wp_key_updates" ~ "Other",
+    surface == "wp_key_updates_top_of_feed_unit_card" ~ "Other",
+    surface == "wp_key_updates_top_of_feed_unit_hover" ~ "Other",
+    surface == "wp_key_updates_top_of_group_unit_card" ~ "Other",
+    surface == "wp_key_updates_top_of_group_unit_hover" ~ "Other",
+    surface == "permalink_or_photo_chaining" ~ "Other",
+    surface == "ms_teams_integration_group_feed" ~ "Other",
+    surface == "ms_teams_integration_news_feed" ~ "Other",
+    surface == "notifications_public_figure_comment_minifeed" ~ "Other",
+    TRUE ~ "Other"  # Default label if none match
+  ))
+
+df_feature_all <- df_all %>% 
+  mutate(feature = case_when(
+    surface == "top_news" ~ "Feed",
+    surface == "video_chaining" ~ "Watch",
+    surface == "vh_live" ~ "Watch",
+    surface == "photos" ~ "Full-screen photo view",
+    surface == "campus_feed" ~ "Feed",
+    surface == "marketplace" ~ "Marketplace",
+    surface == "notifications_public_figure_minifeed" ~ "Other",
+    surface == "top_of_feed_unit" ~ "Feed",
+    surface == "showcase_unit" ~ "Reels",
+    surface == "groups" ~ "Groups",
+    surface == "pages" ~ "Pages",
+    surface == "timeline" ~ "Profile",
+    surface == "sfv_shorts" ~ "Reels",
+    surface == "fb_stories" ~ "Stories",
+    surface == "permalink" ~ "Full-screen post view",
+    surface == "groups_tab" ~ "Groups",
+    surface == "unknown_interaction_source" ~ "Other",
+    surface == "search_results" ~ "Search",
+    surface == "page_video_thumbnail" ~ "Pages",
+    surface == "fb_stories_chaining" ~ "Stories",
+    surface == "video_fullscreen_player" ~ "Other",
+    surface == "fb_shorts_tofu" ~ "Reels",
+    surface == "most_recent_feed" ~ "Other",
+    surface == "news_tab" ~ "Other",
+    surface == "seen_feed" ~ "Feed",
+    surface == "biz_disco_feed" ~ "Other",
+    surface == "snowflake_medias" ~ "Other",
+    surface == "notifications_close_friend_minifeed" ~ "Other",
+    surface == "notifications_public_figure_highlights_minifeed" ~ "Other",
+    surface == "groups_social_learning_tab" ~ "Groups",
+    surface == "video_catalog_thumbnail" ~ "Other",
+    surface == "fan_subscriptions_exclusive_content_feed" ~ "Other",
+    surface == "pages_social_learning_tab" ~ "Other",
+    surface == "local_community_feed" ~ "Other",
+    surface == "notifications_minifeed" ~ "Other",
+    surface == "custom_feed" ~ "Other",
+    surface == "favorites_feed" ~ "Feed",
+    surface == "jewel_tray_minifeed" ~ "Other",
+    surface == "shops_ratings_and_reviews" ~ "Other",
+    surface == "feeds_tab" ~ "Feed",
+    surface == "dessert_feed" ~ "Feed",
+    surface == "media_playlist" ~ "Other",
+    surface == "top_of_home_stories" ~ "Stories",
+    surface == "group_admin_recommendation_feed" ~ "Other",
+    surface == "profile_plus_social_learning_tab" ~ "Profile",
+    surface == "fb_shorts_towu" ~ "Reels",
+    surface == "creator_digest" ~ "Other",
+    surface == "marketplace_pdp_recommended" ~ "Marketplace",
+    surface == "notifications_close_friend_activity_minifeed" ~ "Other",
+    surface == "notifications_nf_photo_story_minifeed" ~ "Other",
+    surface == "notifications_nf_share_story_minifeed" ~ "Other",
+    surface == "wp_key_updates" ~ "Other",
+    surface == "wp_key_updates_top_of_feed_unit_card" ~ "Other",
+    surface == "wp_key_updates_top_of_feed_unit_hover" ~ "Other",
+    surface == "wp_key_updates_top_of_group_unit_card" ~ "Other",
+    surface == "wp_key_updates_top_of_group_unit_hover" ~ "Other",
+    surface == "permalink_or_photo_chaining" ~ "Other",
+    surface == "ms_teams_integration_group_feed" ~ "Other",
+    surface == "ms_teams_integration_news_feed" ~ "Other",
+    surface == "notifications_public_figure_comment_minifeed" ~ "Other",
+    TRUE ~ "Other"  # Default label if none match
+  ))
+
+
+df_feature$month <- as.Date(paste0(df_feature$month, "-01"), format = "%Y-%m-%d")
+df_feature$year <- format(df_feature$month, "%Y")
+
+df_content <- df_feature
+
+df_content <- df_content %>%
+  mutate(content_source = ifelse(is_friend == 1, 
+                                 "Friends", 
+                                 ifelse(is_friend == 0 & post_author_profile_type %in% c("PAGE", "ADDITIONAL_PROFILE_PLUS", "PRIMARY_PROFILE_PLUS"),
+                                        "Page", 
+                                        ifelse(post_author_profile_type %in% c("INSTAGRAM_USER_V2", "INSTAGRAM_USER"), 
+                                               "Instagram users", 
+                                               ifelse(is_friend == 0 & post_author_profile_type == "MAIN_PROFILE", 
+                                                      "Unconnected users",
+                                                      "Other")))))
+
+
+df_figure5 <- df_content %>%
+  group_by(year, content_source, feature) %>%
+  summarise(Totalviews = sum(cululative_vpv_duration, na.rm = TRUE)) %>%
+  ungroup()
+
+df_totalviews_year_feature <- df_figure5 %>%
+  group_by(year, feature) %>%
+  summarise(year_total = sum(Totalviews))
+
+df_figure5 <- df_figure5 %>%
+  left_join(df_totalviews_year_feature, by = c("year", "feature")) %>%
+  mutate(share_of_views = Totalviews / year_total) %>%
+  ungroup()
+
+
+df_figure5 <- df_figure5 %>% select(-Totalviews, -year_total)
+
+reshaped_fig5 <- df_figure5 %>%
+  pivot_wider(
+    names_from = c(year, content_source),  
+    values_from = share_of_views,       
+    names_sep = "_"                     
+  )
+
+
+write_xlsx(reshaped_fig5, file.path(dir_output, "Figure 5 dwell time.xlsx"))
+
+#all surfaces row in table 
+
+df_figure5 <- df_content %>%
+  group_by(year, content_source) %>%
+  summarise(Totalviews = sum(cululative_vpv_duration, na.rm = TRUE)) %>%
+  ungroup()
+
+df_totalviews_year_feature <- df_figure5 %>%
+  group_by(year) %>%
+  summarise(year_total = sum(Totalviews))
+
+df_figure5 <- df_figure5 %>%
+  left_join(df_totalviews_year_feature, by = c("year")) %>%
+  mutate(share_of_views = Totalviews / year_total) %>%
+  ungroup()
+
+
+df_figure5 <- df_figure5 %>% select(-Totalviews, -year_total)
+
+reshaped_fig5 <- df_figure5 %>%
+  pivot_wider(
+    names_from = c(year, content_source),  
+    values_from = share_of_views,       
+    names_sep = "_"                     
+  )
+
+
+write_xlsx(reshaped_fig5, file.path(dir_output, "Figure 5.1 dwell time.xlsx"))
+
+#Dwell time by feature in 2024
+
+dwell_byfreature <- df_feature %>% filter(year== 2024)
+
+df_dwell <- dwell_byfreature %>%
+  group_by(year, feature) %>%
+  summarise(Totalviews = sum(cululative_vpv_duration, na.rm = TRUE)) %>%
+  ungroup()
+
+df_totalviews_year_feature <- df_dwell %>%
+  group_by(year) %>%
+  summarise(year_total = sum(Totalviews))
+
+df_dwell <- df_dwell %>%
+  left_join(df_totalviews_year_feature, by = c("year")) %>%
+  mutate(share_of_views = Totalviews / year_total) %>%
+  ungroup()
+
+
+df_dwell <- df_dwell %>% select(-Totalviews, -year_total)
+
+dwell_byfreature <- df_feature_all %>% filter(year== 2024)
+
+df_dwell <- dwell_byfreature %>%
+  group_by(year, feature) %>%
+  summarise(Totalviews = sum(cululative_vpv_duration, na.rm = TRUE)) %>%
+  ungroup()
+
+df_totalviews_year_feature <- df_dwell %>%
+  group_by(year) %>%
+  summarise(year_total = sum(Totalviews))
+
+df_dwell <- df_dwell %>%
+  left_join(df_totalviews_year_feature, by = c("year")) %>%
+  mutate(share_of_views = Totalviews / year_total) %>%
+  ungroup()
+
+
+df_dwell <- df_dwell %>% select(-Totalviews, -year_total)
+
+dwell_byfreature <- df_feature %>% filter(year== 2024)
+
+df_dwell <- dwell_byfreature %>%
+  group_by(year, feature) %>%
+  summarise(Totalviews = sum(no_of_vpvs, na.rm = TRUE)) %>%
+  ungroup()
+
+df_totalviews_year_feature <- df_dwell %>%
+  group_by(year) %>%
+  summarise(year_total = sum(Totalviews))
+
+df_dwell <- df_dwell %>%
+  left_join(df_totalviews_year_feature, by = c("year")) %>%
+  mutate(share_of_views = Totalviews / year_total) %>%
+  ungroup()
+
+
+df_dwell <- df_dwell %>% select(-Totalviews, -year_total)
+
+dwell_byfreature <- df_feature_all %>% filter(year== 2024)
+
+
+df_dwell <- dwell_byfreature %>%
+  group_by(year, feature) %>%
+  summarise(Totalviews = sum(no_of_vpvs, na.rm = TRUE)) %>%
+  ungroup()
+
+df_totalviews_year_feature <- df_dwell %>%
+  group_by(year) %>%
+  summarise(year_total = sum(Totalviews))
+
+df_dwell <- df_dwell %>%
+  left_join(df_totalviews_year_feature, by = c("year")) %>%
+  mutate(share_of_views = Totalviews / year_total) %>%
+  ungroup()
+
+
+df_dwell <- df_dwell %>% select(-Totalviews, -year_total)
+
+#Feed friend Inventory
+
+
+file_path_ff <- file.path(dir_raw, "daiquery-Feed Friend Inventory-2024-11-02 10_11pm.csv")
+
+# Read the Excel file
+df_ff <- read.csv(file_path_ff)
+
+df_ff$ds <- as.Date(df_ff$ds, format = "%Y-%m-%d")
+names(df_ff)
+
+df_ff <- df_ff %>% filter(friend_feed_inventory_class_7d != "")
+
+df_total <- df_ff %>%
+  group_by(ds) %>%
+  summarise(day_total = sum(no_of_users))
+
+
+df_ff <- df_ff %>%
+  left_join(df_total, by = c("ds")) %>%
+  mutate(share_of_views = no_of_users / day_total) %>%
+  ungroup()
+
+
+png(filename = file.path(dir_output, "Friend Inventory.png"), width = 800, height = 600)
+ggplot(df_ff, aes(x= ds, y=share_of_views, color=factor(friend_feed_inventory_class_7d), group=friend_feed_inventory_class_7d)) +
+  geom_line(size=1) +
+  labs(title="Share of categories of the Feed Friend Inventory over time",
+       y="share",
+       x= " ",
+       color=" ") +
+  scale_x_date( date_breaks = "7 days",           
+                date_labels = "%d %b %Y") +
+  scale_y_continuous(limits = c(0, 1),   breaks = seq(0, 1, by = 0.05)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(plot.title = element_text(size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16),
+        panel.grid.major.y = element_line(color = "lightgray"),  
+        panel.grid.major.x = element_blank(),                                         
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(color = "black", size = 0.5),
+        legend.title = element_text(size = 14),    
+        legend.text = element_text(size = 15),     
+        legend.key.size = unit(1.5, "lines"))  +
+  expand_limits(y = 0)
+
+dev.off()
+
+
+
+df_recent <- df_ff %>% filter(ds >= as.Date("2024-08-13"))
+
+
+write_xlsx(df_recent, file.path(dir_output, "ff recent day.xlsx"))
+
+
+
