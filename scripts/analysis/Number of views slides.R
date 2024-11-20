@@ -86,7 +86,6 @@ print(df_table_1a)
 # Graph
 
 df_figure_2 <- df_all |>
-  filter(!post_origin=="")|>
   group_by(month, is_friend, post_origin) |>
   summarise(
     Totalviews = sum(no_of_vpvs, na.rm = TRUE),
@@ -106,10 +105,10 @@ df_figure_2 <- df_all |>
   select(-Totalviews, -TotalOrganicviews) 
 
 graph_2 <- df_figure_2 |>
-  select(-monthly_organic_share, -total_organic_share) |>
-  spread(key=post_origin, value=monthly_share) |>
-  gather(key=post_origin, value=monthly_share, -month, -is_friend) |>
-  ggplot(aes(month, monthly_share, colour=post_origin))+
+  select(-monthly_share, -total_share) |>
+  spread(key=post_origin, value=monthly_organic_share) |>
+  gather(key=post_origin, value=monthly_organic_share, -month, -is_friend) |>
+  ggplot(aes(month, monthly_organic_share, colour=post_origin))+
   geom_line()+
   geom_point()+
   labs(
@@ -228,6 +227,7 @@ df_content <- df_feature %>%
     is_friend == 0 & post_author_profile_type %in% c("PAGE", "ADDITIONAL_PROFILE_PLUS", "PRIMARY_PROFILE_PLUS") ~ "Page",
     post_author_profile_type %in% c("INSTAGRAM_USER_V2", "INSTAGRAM_USER") ~ "Instagram users",
     is_friend == 0 & post_author_profile_type == "MAIN_PROFILE" ~ "Unconnected users",
+    is_friend == 0 & post_author_profile_type == "SINGLE_OWNER_ADDITIONAL_PROFILE" ~ "Group Admin Profile",
     TRUE ~ "Other"
   ))
 
