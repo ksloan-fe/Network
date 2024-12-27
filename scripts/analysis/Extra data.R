@@ -31,7 +31,7 @@ df_all <- df_2024 |>
   mutate(is_friend = replace_na(is_friend, 0)) |>
   mutate(is_organic = is.na(is_ad) & is.na(is_eqp) & is.na(is_qp))
 
-df_unique <- df_all |>
+df_unique <- df_all |> 
   filter(is_organic)
 
 #Slide 26
